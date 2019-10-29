@@ -1,3 +1,6 @@
+import connect_four.exceptions as c4Errors
+from .exceptions import InvalidColumnError, ColumnFullError
+
 class Grid:
 
     def __init__(self, num_rows, num_cols, blank_char='-', **kwargs) -> None:
@@ -27,11 +30,11 @@ class Grid:
     # Add the specified token to a column
     def add_piece(self, column_number, token):
         if column_number not in range(self.num_cols):
-            raise IndexError('Not a valid column number: {}'.format(column_number))
+            raise InvalidColumnError('Not a valid column number: {}'.format(column_number))
 
         row_number = len(self._cols[column_number])
         if row_number not in range(self.num_rows):
-            raise ValueError('Column is already full. Cannot add a piece here.')
+            raise ColumnFullError('Column is already full. Cannot add a piece here.')
         self._cols[column_number].append(token)
         self._rows[row_number][column_number] = token
     
@@ -44,7 +47,7 @@ class Grid:
                     coords.append((row_num, col_num))
         return coords
     
-    # Check if the grid is in an end state
+    # Look for and return any winning lines
     def winning_lines(self):
         winning_lines = []
         
@@ -55,45 +58,44 @@ class Grid:
                     continue
                 if col_num + self.winning_number < len(self._cols):
                     # Check the horizontal
-                    token_count = 1
-                    winning_tokens = [(row_num, col_num)]
-
-                    for i in range(1, self.winning_number):
-                        test_token = self._rows[row_num][col_num+i]
-                        if test_token == token:
-                            token_count += 1
-                            winning_tokens.append((row_num, col_num+i))
-                    if token_count == self.winning_number:
-                        winning_lines.append({'token': token, 'coords': winning_tokens})
+                    line = self.check_line(row_num, col_num, row_step=1, col_step=0)
+                    if line is not None:
+                        winning_lines.append(line)
 
                     if row_num + self.winning_number < len(self._rows):
                         # Check the diagonal
-                        token_count = 1
-                        winning_tokens = [(row_num, col_num)]
-
-                        for i in range(1, self.winning_number):
-                            test_token = self._rows[row_num+i][col_num+i]
-                            if test_token == token:
-                                token_count += 1
-                                winning_tokens.append((row_num+i, col_num+i))
-                        if token_count == self.winning_number:
-                            winning_lines.append({'token': token, 'coords': winning_tokens})
+                        line = self.check_line(row_num, col_num, row_step=1, col_step=1)
+                        if line is not None:
+                            winning_lines.append(line)
 
                 if row_num + self.winning_number < len(self._rows):
                     # Check the vertical
-                    token_count = 1
-                    winning_tokens = [(row_num, col_num)]
-
-                    for i in range(1, self.winning_number):
-                        test_token = self._rows[row_num+i][col_num]
-                        if test_token == token:
-                            token_count += 1
-                            winning_tokens.append((row_num+i, col_num))
-                    if token_count == self.winning_number:
-                        winning_lines.append({'token': token, 'coords': winning_tokens})
+                    line = self.check_line(row_num, col_num, row_step=0, col_step=1)
+                    if line is not None:
+                        winning_lines.append(line)
 
         return winning_lines
-        
+    
+    def check_line(self, row_start, col_start, row_step, col_step):
+        token = self._rows[row_start][col_start]
+        if token == self.blank_char:
+            return None
+
+        token_count = 1
+        positions = []
+        for i in range(1, self.winning_number-1):
+            print('Orig token: Row {} | Col {}, Test token: Row {} | Col {}'.format(row_start, col_start, row_start + i*row_step, col_start + i*col_step))
+            test_token = self._rows[row_start + i*row_step][col_start + i*col_step]
+            if test_token == token:
+                token_count += 1
+                positions.append({'row': row_start + row_step, 'col': col_start + col_step})
+            else:
+                return None
+        if token_count == self.winning_number:
+            line = {'token': token, 'positions': positions}
+            return line
+        else:
+            return None
 
 
 class Game:    
@@ -101,23 +103,36 @@ class Game:
     # Return the player who's turn it is
     @property
     def turn(self):
-        return self.turn
+        return self._turn
 
     @property
-    def grid_state(self):
+    def state(self):
         return self._grid.state()
-
+    
     def __init__(self, **kwargs) -> None:
         num_rows = 6
         num_cols = 7
-        self.players = ['a', 'b']
-        self.tokens = {'a': 'x',
-              'b': 'o'}
+        self.players = ['x', 'o']
+        self.tokens = {'x': 'x', 'o': 'o'}
+        self.next_turn = {'x': 'o', 'o': 'x'}
 
         self._grid = Grid(num_rows, num_cols)
-        self.turn = 'a'
+        self._turn = 'x'
+
+    # Print the grid state
+    def print(self):
+        grid = self._grid.state()
+        output = '{}0123456'.format(grid)
+        print(output)
 
     # Take the player's move in the given column
     def move(self, column_number):
         token = self.tokens[self.turn]
         self._grid.add_piece(column_number, token)
+
+        winning_lines = self._grid.winning_lines()
+        if len(winning_lines) > 0:
+            return winning_lines
+        
+        self._turn = self.next_turn[self._turn]
+        return None
