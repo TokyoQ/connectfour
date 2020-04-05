@@ -23,13 +23,18 @@ class ConnectFourDriver:
 
             # Make the user's move
             try:
-                lines = self._game.move(column)
+                self._game.move(column)
             except ColumnFullError:
                 print('That column is already full. Try again.')
             except InvalidColumnError:
                 print('That isn''t a valid column number. Try again.')
             
-            if lines is not None:
-                print('Player {} has won!'.format(self._game.turn))
-                print(lines)
-                exit
+            if self._game.game_state == 'WIN':
+                self._game.print()
+                print('Player {} has won!'.format(self._game.winner))
+                print(self._game.winning_lines)
+                quit()
+            if self._game.game_state == 'TIE':
+                self._game.print()
+                print('No moves left. The game is tie!')
+                quit()
